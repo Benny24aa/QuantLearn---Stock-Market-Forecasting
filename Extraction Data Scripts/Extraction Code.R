@@ -11,19 +11,20 @@ url <- paste0(
 listings <- read_csv(
   url,
   show_col_types = FALSE
-)
+) 
 
-stock_lookup <- listings |>
+stock_lookup <- listings %>% 
   filter(
     str_to_lower(asset_type) == "stock",
     !is.na(ticker),
-    ticker != ""
-  ) |>
+    ticker != "",
+    exchange == "LSE"
+  ) %>% 
   distinct(
     ticker,
     exchange,
     .keep_all = TRUE
-  ) |>
+  ) %>% 
   select(
     any_of(c(
       "listing_key",
@@ -42,7 +43,7 @@ stock_lookup <- listings |>
       "cik",
       "aliases"
     ))
-  ) |>
+  ) %>% 
   arrange(
     country,
     exchange,
@@ -54,10 +55,7 @@ write_csv(
   "stock_lookup.csv"
 )
 
-stocks <- stock_lookup %>% 
-  filter(ticker %in% failed$ticker)
-
-dir.create("stock_data", showWarnings = FALSE)
+stocks <- stock_lookup
 
 failed <- tibble(
   listing_key = character(),
@@ -69,6 +67,7 @@ failed <- tibble(
 for (i in seq_len(nrow(stocks))) {
   
   ticker <- stocks$ticker[i]
+  yahoo_ticker <- paste0(ticker, ".L")
   listing_key <- stocks$listing_key[i]
   
   message(
@@ -76,19 +75,29 @@ for (i in seq_len(nrow(stocks))) {
     " / ",
     nrow(stocks),
     " | ",
-    ticker
+    ticker,
+    " | ",
+    yahoo_ticker
   )
   
   data <- tryCatch(
     getSymbols(
-      ticker,
+      yahoo_ticker,
       src = "yahoo",
       from = "1900-01-01",
       to = Sys.Date(),
       auto.assign = FALSE,
       warnings = FALSE
     ),
-    error = function(e) NULL
+    error = function(e) {
+      message(
+        "FAILED | ",
+        ticker,
+        " | ",
+        conditionMessage(e)
+      )
+      NULL
+    }
   )
   
   if (is.null(data)) {
@@ -112,7 +121,7 @@ for (i in seq_len(nrow(stocks))) {
     exchange = stocks$exchange[i],
     name = stocks$name[i],
     country = stocks$country[i],
-    date = index(data),
+    date = as.Date(index(data)),
     open = as.numeric(Op(data)),
     high = as.numeric(Hi(data)),
     low = as.numeric(Lo(data)),
@@ -130,7 +139,7 @@ for (i in seq_len(nrow(stocks))) {
   write_csv(
     output,
     paste0(
-      "stock_data/",
+      "LSE Data/",
       safe_name,
       ".csv"
     )
@@ -139,5 +148,5 @@ for (i in seq_len(nrow(stocks))) {
 
 write_csv(
   failed,
-  "stock_data/failed.csv"
+  "LSE Data/failed.csv"
 )
