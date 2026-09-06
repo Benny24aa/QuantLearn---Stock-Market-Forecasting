@@ -1,7 +1,7 @@
 library(data.table)
 
 files <- list.files(
-  "stock_data",
+  "LSE Data",
   pattern = "\\.csv$",
   full.names = TRUE
 )
